@@ -17,7 +17,7 @@ async function getGigaChatToken() {
   }
 
   try {
-    const { default: fetch } = await import("node-fetch");
+   const fetch = require("node-fetch");
 
     const response = await fetch(
       "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",

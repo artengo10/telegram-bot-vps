@@ -5,6 +5,11 @@ const { askGigaChat } = require("./services/gigaChat");
 const { initDatabase } = require("./database/db");
 const externalData = require("./services/externalData");
 const path = require("path");
+const {
+  addRow,
+  writeToCell,
+  writeToRange,
+} = require("./services/googleSheets");
 
 // Загрузка переменных окружения
 require("dotenv").config();
@@ -31,10 +36,99 @@ async function startBot() {
 
     const bot = new Bot(process.env.BOT_TOKEN);
 
-    // Обработчик текстовых сообщений
+    // Команды
+    bot.command("start", (ctx) => {
+      ctx.reply(`🤖 Бот запущен! Поддерживаются голосовые сообщения 🎤
+
+Как работать с голосовыми сообщениями:
+1. Отправьте голосовое сообщение
+2. Нажмите на него и выберите "Распознать речь"
+3. Скопируйте текст и отправьте его боту
+
+Доступные команды:
+/currency - Все валюты
+/crypto - Все криптовалюты  
+/weather - Погода
+/add - Добавить запись в таблицу (формат: /add A1 Текст)
+/clear - Очистить историю`);
+    });
+
+    bot.command("currency", async (ctx) => {
+      const data =
+        await externalData.currencyService.getCurrencyDataFormatted();
+      await ctx.reply(data || "Не удалось получить данные о валютах");
+    });
+
+    bot.command("crypto", async (ctx) => {
+      const data = await externalData.cryptoService.getCryptoDataFormatted();
+      await ctx.reply(data || "Не удалось получить данных о криптовалютах");
+    });
+
+    bot.command("weather", async (ctx) => {
+      const weather =
+        await externalData.weatherService.getWeatherDataFormatted();
+      await ctx.reply(weather);
+    });
+
+    // Команда для добавления данных в конкретную ячейку
+    bot.command("add", async (ctx) => {
+      // Формат: /add B1 Текст для ячейки
+      const args = ctx.message.text.split(" ");
+
+      // Проверяем минимальное количество аргументов
+      if (args.length < 3) {
+        await ctx.reply(
+          "❌ Формат команды: /add [ячейка] [текст]\nНапример: /add B1 Привет мир\nИли: /add A1 Артем"
+        );
+        return;
+      }
+
+      const cell = args[1].toUpperCase(); // B1 → B1
+      const text = args.slice(2).join(" "); // Объединяем все остальные слова в текст
+
+      // Пытаемся записать в указанную ячейку
+      const success = await writeToCell(cell, text);
+
+      if (success) {
+        await ctx.reply(`✅ Текст "${text}" успешно записан в ячейку ${cell}!`);
+      } else {
+        await ctx.reply(
+          "❌ Ошибка! Не удалось записать в ячейку. Смотри логи бота."
+        );
+      }
+    });
+
+    bot.command("clear", async (ctx) => {
+      await userService.clearHistory(ctx.from.id);
+      await ctx.reply("🗑️ История диалога очищена!");
+    });
+
+    bot.command("debug_voice", async (ctx) => {
+      if (ctx.message.reply_to_message && ctx.message.reply_to_message.voice) {
+        const voiceMsg = ctx.message.reply_to_message;
+        await ctx.reply(
+          `Структура голосового сообщения:\n${JSON.stringify(
+            voiceMsg,
+            null,
+            2
+          )}`
+        );
+      } else {
+        await ctx.reply(
+          "Ответьте этой командой на голосовое сообщение для диагностики"
+        );
+      }
+    });
+
+    // ОБЩИЙ ОБРАБОТЧИК СООБЩЕНИЙ
     bot.on("message", async (ctx) => {
       if (ctx.from.id !== parseInt(process.env.YOUR_USER_ID)) {
         return ctx.reply("🔒 Доступ ограничен");
+      }
+
+      // Если сообщение уже обработано как команда - выходим
+      if (ctx.message.text && ctx.message.text.startsWith("/")) {
+        return;
       }
 
       // Обработка голосовых сообщений
@@ -74,14 +168,11 @@ async function startBot() {
       }
     });
 
+    // Функция обработки текстовых сообщений
     async function processTextMessage(ctx, text) {
       const userId = ctx.from.id;
 
       try {
-        if (text.startsWith("/")) {
-          return;
-        }
-
         const preciseData = await externalData.getPreciseData(text);
 
         if (preciseData) {
@@ -105,61 +196,7 @@ async function startBot() {
       }
     }
 
-    // Команды
-    bot.command("start", (ctx) => {
-      ctx.reply(`🤖 Бот запущен! Поддерживаются голосовые сообщения 🎤
-
-Как работать с голосовыми сообщениями:
-1. Отправьте голосовое сообщение
-2. Нажмите на него и выберите "Распознать речь"
-3. Скопируйте текст и отправьте его боту
-
-Доступные команды:
-/currency - Все валюты
-/crypto - Все криптовалюты  
-/weather - Погода
-/clear - Очистить историю`);
-    });
-
-    bot.command("currency", async (ctx) => {
-      const data =
-        await externalData.currencyService.getCurrencyDataFormatted();
-      await ctx.reply(data || "Не удалось получить данные о валютах");
-    });
-
-    bot.command("crypto", async (ctx) => {
-      const data = await externalData.cryptoService.getCryptoDataFormatted();
-      await ctx.reply(data || "Не удалось получить данных о криптовалютах");
-    });
-
-    bot.command("weather", async (ctx) => {
-      const weather =
-        await externalData.weatherService.getWeatherDataFormatted();
-      await ctx.reply(weather);
-    });
-
-    bot.command("clear", async (ctx) => {
-      await userService.clearHistory(ctx.from.id);
-      await ctx.reply("🗑️ История диалога очищена!");
-    });
-
-    bot.command("debug_voice", async (ctx) => {
-      if (ctx.message.reply_to_message && ctx.message.reply_to_message.voice) {
-        const voiceMsg = ctx.message.reply_to_message;
-        await ctx.reply(
-          `Структура голосового сообщения:\n${JSON.stringify(
-            voiceMsg,
-            null,
-            2
-          )}`
-        );
-      } else {
-        await ctx.reply(
-          "Ответьте этой командой на голосовое сообщение для диагностики"
-        );
-      }
-    });
-
+    // Обработчик ошибок бота
     bot.catch((error) => {
       console.error("❌ Ошибка в обработчике бота:", error);
     });
@@ -186,6 +223,7 @@ function setupProcessHandlers() {
   });
 }
 
+// Настройка обработчиков и запуск бота
 setupProcessHandlers();
 startBot().catch((error) => {
   console.error("💥 Необработанная ошибка:", error);

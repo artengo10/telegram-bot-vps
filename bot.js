@@ -36,14 +36,15 @@ async function startBot() {
 
     const bot = new Bot(process.env.BOT_TOKEN);
 
-    // Команды
+    // Добавляем подробное логирование всех команд
     bot.command("start", (ctx) => {
+      console.log("✅ Команда /start получена от пользователя:", ctx.from.id);
       ctx.reply(`🤖 Бот запущен! Поддерживаются голосовые сообщения 🎤
 
 Как работать с голосовыми сообщениями:
 1. Отправьте голосовое сообщение
 2. Нажмите на него и выберите "Распознать речь"
-3. Скопируйте текст и отправьте его боту
+3. Скопируйте распознанный текст и отправьте его боту
 
 Доступные команды:
 /currency - Все валюты
@@ -54,17 +55,20 @@ async function startBot() {
     });
 
     bot.command("currency", async (ctx) => {
+      console.log("✅ Команда /currency получена");
       const data =
         await externalData.currencyService.getCurrencyDataFormatted();
       await ctx.reply(data || "Не удалось получить данные о валютах");
     });
 
     bot.command("crypto", async (ctx) => {
+      console.log("✅ Команда /crypto получена");
       const data = await externalData.cryptoService.getCryptoDataFormatted();
       await ctx.reply(data || "Не удалось получить данных о криптовалютах");
     });
 
     bot.command("weather", async (ctx) => {
+      console.log("✅ Команда /weather получена");
       const weather =
         await externalData.weatherService.getWeatherDataFormatted();
       await ctx.reply(weather);
@@ -72,11 +76,14 @@ async function startBot() {
 
     // Команда для добавления данных в конкретную ячейку
     bot.command("add", async (ctx) => {
+      console.log("✅ Команда /add получена:", ctx.message.text);
+
       // Формат: /add B1 Текст для ячейки
       const args = ctx.message.text.split(" ");
 
       // Проверяем минимальное количество аргументов
       if (args.length < 3) {
+        console.log("❌ Неверный формат команды /add");
         await ctx.reply(
           "❌ Формат команды: /add [ячейка] [текст]\nНапример: /add B1 Привет мир\nИли: /add A1 Артем"
         );
@@ -86,24 +93,37 @@ async function startBot() {
       const cell = args[1].toUpperCase(); // B1 → B1
       const text = args.slice(2).join(" "); // Объединяем все остальные слова в текст
 
-      // Пытаемся записать в указанную ячейку
-      const success = await writeToCell(cell, text);
+      console.log(`📝 Пытаюсь записать в ячейку ${cell}: "${text}"`);
 
-      if (success) {
-        await ctx.reply(`✅ Текст "${text}" успешно записан в ячейку ${cell}!`);
-      } else {
-        await ctx.reply(
-          "❌ Ошибка! Не удалось записать в ячейку. Смотри логи бота."
-        );
+      // Пытаемся записать в указанную ячейку
+      try {
+        const success = await writeToCell(cell, text);
+
+        if (success) {
+          console.log(`✅ Успешно записано в ${cell}`);
+          await ctx.reply(
+            `✅ Текст "${text}" успешно записан в ячейку ${cell}!`
+          );
+        } else {
+          console.log(`❌ Ошибка записи в ${cell}`);
+          await ctx.reply(
+            "❌ Ошибка! Не удалось записать в ячейку. Смотри логи бота."
+          );
+        }
+      } catch (error) {
+        console.error("💥 Критическая ошибка в /add:", error);
+        await ctx.reply("💥 Произошла критическая ошибка при записи в таблицу");
       }
     });
 
     bot.command("clear", async (ctx) => {
+      console.log("✅ Команда /clear получена");
       await userService.clearHistory(ctx.from.id);
       await ctx.reply("🗑️ История диалога очищена!");
     });
 
     bot.command("debug_voice", async (ctx) => {
+      console.log("✅ Команда /debug_voice получена");
       if (ctx.message.reply_to_message && ctx.message.reply_to_message.voice) {
         const voiceMsg = ctx.message.reply_to_message;
         await ctx.reply(
@@ -122,17 +142,25 @@ async function startBot() {
 
     // ОБЩИЙ ОБРАБОТЧИК СООБЩЕНИЙ
     bot.on("message", async (ctx) => {
+      console.log("📨 Получено сообщение от пользователя:", ctx.from.id);
+
       if (ctx.from.id !== parseInt(process.env.YOUR_USER_ID)) {
+        console.log(
+          "🔒 Попытка доступа от неавторизованного пользователя:",
+          ctx.from.id
+        );
         return ctx.reply("🔒 Доступ ограничен");
       }
 
       // Если сообщение уже обработано как команда - выходим
       if (ctx.message.text && ctx.message.text.startsWith("/")) {
+        console.log("⚡ Сообщение начинается с /, пропускаем общий обработчик");
         return;
       }
 
       // Обработка голосовых сообщений
       if (ctx.message.voice) {
+        console.log("🎤 Получено голосовое сообщение");
         try {
           await ctx.reply(
             '🎤 Голосовое сообщение получено! \n\nЧтобы я мог его обработать, пожалуйста:\n1. Нажмите на голосовое сообщение\n2. Выберите "Распознать речь"\n3. Скопируйте распознанный текст\n4. Отправьте его мне как текстовое сообщение'
@@ -147,6 +175,7 @@ async function startBot() {
 
       // Обработка пересланных сообщений
       if (ctx.message.forward_from_message_id && ctx.message.text) {
+        console.log("📨 Получено пересланное сообщение");
         try {
           const originalMessage = await ctx.api.getMessage(
             ctx.chat.id,
@@ -164,6 +193,7 @@ async function startBot() {
 
       // Обработка обычных текстовых сообщений
       if (ctx.message.text) {
+        console.log("📝 Текстовое сообщение:", ctx.message.text);
         await processTextMessage(ctx, ctx.message.text);
       }
     });
@@ -171,17 +201,20 @@ async function startBot() {
     // Функция обработки текстовых сообщений
     async function processTextMessage(ctx, text) {
       const userId = ctx.from.id;
+      console.log("🔧 Обработка текстового сообщения:", text);
 
       try {
         const preciseData = await externalData.getPreciseData(text);
 
         if (preciseData) {
+          console.log("📊 Найдены точные данные для ответа");
           await ctx.reply(preciseData);
           await userService.addToHistory(userId, text, "user");
           await userService.addToHistory(userId, preciseData, "assistant");
           return;
         }
 
+        console.log("🤖 Передаю запрос нейросети GigaChat");
         await ctx.api.sendChatAction(ctx.chat.id, "typing");
         await userService.addToHistory(userId, text, "user");
         const history = await userService.getChatHistory(userId);
@@ -202,8 +235,10 @@ async function startBot() {
     });
 
     console.log("🚀 Запуск бота с поддержкой голосовых...");
+
+    // Всегда используем polling для простоты
     await bot.start();
-    console.log("✅ Бот успешно запущен");
+    console.log("✅ Бот успешно запущен в режиме polling");
   } catch (error) {
     console.error("💥 Критическая ошибка при запуске бота:", error);
     process.exit(1);

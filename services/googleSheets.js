@@ -1,34 +1,49 @@
 const { google } = require("googleapis");
 
-// Настройки доступа - используем переменные окружения
-let auth;
-try {
-  // Пытаемся получить учетные данные из переменной окружения
-  if (process.env.GOOGLE_CREDENTIALS) {
-    // Используем переменную окружения (для хостинга)
-    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-    auth = new google.auth.GoogleAuth({
+// Создаем объект учетных данных из переменных окружения
+function getAuth() {
+  try {
+    // Формируем объект credentials из переменных окружения
+    const credentials = {
+      type: process.env.GOOGLE_TYPE,
+      project_id: process.env.GOOGLE_PROJECT_ID,
+      private_key_id: process.env.GOOGLE_PRIVATE_KEY_ID,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"), // Важно: заменяем \n на настоящие переносы строк
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      auth_uri:
+        process.env.GOOGLE_AUTH_URI ||
+        "https://accounts.google.com/o/oauth2/auth",
+      token_uri:
+        process.env.GOOGLE_TOKEN_URI || "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url:
+        process.env.GOOGLE_AUTH_PROVIDER_CERT_URL ||
+        "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url: process.env.GOOGLE_CLIENT_CERT_URL,
+    };
+
+    console.log(
+      "[Google Sheets] Using environment variables for authentication"
+    );
+
+    const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
-    console.log("[Google Sheets] Using environment variable credentials");
-  } else {
-    // Используем файл (для локальной разработки)
-    auth = new google.auth.GoogleAuth({
-      keyFile: "credentials.json",
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-    console.log("[Google Sheets] Using credentials.json file");
+
+    return auth;
+  } catch (error) {
+    console.error("[Google Sheets] Auth initialization error:", error);
+    throw error;
   }
-} catch (error) {
-  console.error("[Google Sheets] Auth initialization error:", error);
-  throw error;
 }
 
+const auth = getAuth();
 const sheets = google.sheets({ version: "v4", auth });
 
-// ID вашей таблицы
-const spreadsheetId = "1RIDsDwPAJkqWiyrJc9qZxcLpJmbFw2WvEbPIypw8eKo";
+// ID вашей таблицы из переменной окружения
+const spreadsheetId =
+  process.env.GOOGLE_SHEET_ID || "1RIDsDwPAJkqWiyrJc9qZxcLpJmbFw2WvEbPIypw8eKo";
 
 /**
  * Записывает значение в конкретную ячейку

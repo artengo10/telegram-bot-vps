@@ -220,6 +220,19 @@ async function startBot() {
     await userService.init();
     console.log("✅ База данных готова");
 
+    // Тестируем подключение к Google Sheets
+    console.log("🔄 Тестирование подключения к Google Sheets...");
+    try {
+      const testWrite = await writeToCell("A1", "Test connection");
+      if (testWrite) {
+        console.log("✅ Google Sheets подключение успешно");
+      } else {
+        console.log("❌ Google Sheets: запись не удалась");
+      }
+    } catch (error) {
+      console.error("❌ Ошибка подключения к Google Sheets:", error.message);
+    }
+
     // 🔥 ВЫБОР РЕЖИМА РАБОТЫ В ЗАВИСИМОСТИ ОТ ОКРУЖЕНИЯ
     if (process.env.NODE_ENV === "production") {
       // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)

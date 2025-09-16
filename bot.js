@@ -214,7 +214,9 @@ bot.catch((error) => {
 });
 async function startBot() {
   try {
+    console.log("🔄 Инициализация бота...");
     await bot.init();
+    
     console.log("🔄 Инициализация базы данных...");
     await initDatabase();
     await userService.init();

@@ -1,0 +1,23 @@
+BOT/
+config/
+keys.js
+database/
+bot.db (не могу его открыть ни в редакторе не в блокноте)
+db.js
+handlers/
+node_modules/
+service/
+cryptoService.js
+currencyService.js
+externalData.js
+gigaChat.js
+googleSheets.js
+userProfile.js
+weatherService.js
+.env/
+.gitignore/
+bot.js/
+credentials.json/
+package-lock.json/
+package.json/
+Procfile/

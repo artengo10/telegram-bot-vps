@@ -1,15 +1,15 @@
-const { Bot } = require("grammy");
+const { Bot, Keyboard, InlineKeyboard } = require("grammy");
 const express = require("express");
+
+// Правильные импорты
+const { initDatabase } = require("./database/db");
 const { userService, getSystemPrompt } = require("./services/userProfile");
 const { askGigaChat } = require("./services/gigaChat");
-const { initDatabase } = require("./database/db");
-const externalData = require("./services/externalData");
-const path = require("path");
-const {
-  addRow,
-  writeToCell,
-  writeToRange,
-} = require("./services/googleSheets");
+const currencyService = require("./services/currencyService");
+const cryptoService = require("./services/cryptoService");
+const weatherService = require("./services/weatherService");
+const externalDataService = require("./services/externalData");
+const { writeToCell } = require("./services/googleSheets");
 
 // Загрузка переменных окружения
 require("dotenv").config();
@@ -17,7 +17,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware для парсинга JSON (обязательно для вебхуков!)
+// Middleware для парсинга JSON
 app.use(express.json());
 
 // Health check endpoint
@@ -28,50 +28,126 @@ app.get("/", (req, res) => {
 // Инициализация бота
 const bot = new Bot(process.env.BOT_TOKEN);
 
-// Добавляем обработчики команд и сообщений
-bot.command("start", (ctx) => {
+// Создаем клавиатуру с кнопками
+function createMainKeyboard() {
+  return new Keyboard()
+    .text("💰 Курсы валют")
+    .text("₿ Криптовалюты")
+    .row()
+    .text("🌤️ Погода")
+    .text("📊 Google Таблица")
+    .row()
+    .text("🧹 Очистить историю")
+    .text("ℹ️ Помощь")
+    .resized()
+    .persistent(); // Клавиатура остается открытой
+}
+
+// Команда /start
+bot.command("start", async (ctx) => {
   console.log("✅ Команда /start получена от пользователя:", ctx.from.id);
-  ctx.reply(`🤖 Бот запущен! Поддерживаются голосовые сообщения 🎤
 
-Как работать с голосовыми сообщениями:
-1. Отправьте голосовое сообщение
-2. Нажмите на него и выберите "Распознать речь"
-3. Скопируйте распознанный текст и отправьте его боту
+  const welcomeText = `🤖 <b>Добро пожаловать!</b> Я ваш AI-ассистент с расширенными функциями.
 
-Доступные команды:
-/currency - Все валюты
-/crypto - Все криптовалюты  
-/weather - Погода
-/add - Добавить запись в таблицу (формат: /add A1 Текст)
-/clear - Очистить историю`);
+🎯 <b>Доступные команды:</b>
+/currency - Курсы валют ЦБ РФ
+/crypto - Топ-10 криптовалют
+/weather - Прогноз погоды
+/add - Запись в таблицу (формат: /add A1 Текст)
+/clear - Очистить историю диалога
+/help - Справка
+
+💡 <b>Или используйте кнопки ниже</b> - это еще удобнее!`;
+
+  await ctx.reply(welcomeText, {
+    parse_mode: "HTML",
+    reply_markup: createMainKeyboard(),
+  });
 });
 
+// Команда /help
+bot.command("help", async (ctx) => {
+  await ctx.reply(
+    `🎯 <b>Доступные команды:</b>
+
+/currency - Актуальные курсы валют ЦБ РФ
+/crypto - Топ-10 криптовалют
+/weather - Прогноз погоды
+/add [ячейка] [текст] - Запись в Google Таблицу
+/clear - Очистить историю диалога
+/help - Эта справка
+
+💡 <b>Или используйте кнопки</b> для быстрого доступа к функциям!`,
+    {
+      parse_mode: "HTML",
+      reply_markup: createMainKeyboard(),
+    }
+  );
+});
+
+// Команда /currency
 bot.command("currency", async (ctx) => {
   console.log("✅ Команда /currency получена");
-  const data = await externalData.currencyService.getCurrencyDataFormatted();
-  await ctx.reply(data || "Не удалось получить данные о валютах");
+  try {
+    await ctx.reply("🔄 Получаю актуальные курсы валют...");
+    const data = await currencyService.getCurrencyDataFormatted();
+    await ctx.reply(data || "Не удалось получить данные о валютах", {
+      reply_markup: createMainKeyboard(),
+    });
+  } catch (error) {
+    console.error("❌ Ошибка в команде /currency:", error);
+    await ctx.reply("❌ Ошибка при получении данных о валютах", {
+      reply_markup: createMainKeyboard(),
+    });
+  }
 });
 
+// Команда /crypto
 bot.command("crypto", async (ctx) => {
   console.log("✅ Команда /crypto получена");
-  const data = await externalData.cryptoService.getCryptoDataFormatted();
-  await ctx.reply(data || "Не удалось получить данных о криптовалютах");
+  try {
+    await ctx.reply("🔄 Получаю данные о криптовалютах...");
+    const data = await cryptoService.getCryptoDataFormatted();
+    await ctx.reply(data || "Не удалось получить данных о криптовалютах", {
+      reply_markup: createMainKeyboard(),
+    });
+  } catch (error) {
+    console.error("❌ Ошибка в команде /crypto:", error);
+    await ctx.reply("❌ Ошибка при получении данных о криптовалютах", {
+      reply_markup: createMainKeyboard(),
+    });
+  }
 });
 
+// Команда /weather
 bot.command("weather", async (ctx) => {
   console.log("✅ Команда /weather получена");
-  const weather = await externalData.weatherService.getWeatherDataFormatted();
-  await ctx.reply(weather);
+  try {
+    await ctx.reply("🔄 Получаю данные о погоде...");
+    const weather = await weatherService.getWeatherDataFormatted();
+    await ctx.reply(weather, {
+      reply_markup: createMainKeyboard(),
+    });
+  } catch (error) {
+    console.error("❌ Ошибка в команде /weather:", error);
+    await ctx.reply("❌ Ошибка при получении данных о погоде", {
+      reply_markup: createMainKeyboard(),
+    });
+  }
 });
 
+// Команда /add
 bot.command("add", async (ctx) => {
   console.log("✅ Команда /add получена:", ctx.message.text);
   const args = ctx.message.text.split(" ");
 
   if (args.length < 3) {
-    console.log("❌ Неверный формат команды /add");
     await ctx.reply(
-      "❌ Формат команды: /add [ячейка] [текст]\nНапример: /add B1 Привет мир\nИли: /add A1 Артем"
+      "❌ <b>Неверный формат команды</b>\n\nФормат: <code>/add [ячейка] [текст]</code>\n\nПримеры:\n<code>/add A1 Привет мир</code>\n<code>/add B2 Данные для анализа</code>",
+      {
+        parse_mode: "HTML",
+        reply_markup: createMainKeyboard(),
+      }
     );
     return;
   }
@@ -82,47 +158,50 @@ bot.command("add", async (ctx) => {
   console.log(`📝 Пытаюсь записать в ячейку ${cell}: "${text}"`);
 
   try {
+    await ctx.reply(`🔄 Записываю в ячейку ${cell}...`);
     const success = await writeToCell(cell, text);
 
     if (success) {
-      console.log(`✅ Успешно записано в ${cell}`);
-      await ctx.reply(`✅ Текст "${text}" успешно записан в ячейку ${cell}!`);
+      await ctx.reply(`✅ Текст "${text}" успешно записан в ячейку ${cell}!`, {
+        reply_markup: createMainKeyboard(),
+      });
     } else {
-      console.log(`❌ Ошибка записи в ${cell}`);
       await ctx.reply(
-        "❌ Ошибка! Не удалось записать в ячейку. Смотри логи бота."
+        "❌ Ошибка! Не удалось записать в ячейку. Проверьте логи бота.",
+        {
+          reply_markup: createMainKeyboard(),
+        }
       );
     }
   } catch (error) {
     console.error("💥 Критическая ошибка в /add:", error);
-    await ctx.reply("💥 Произошла критическая ошибка при записи в таблицу");
+    await ctx.reply("💥 Произошла критическая ошибка при записи в таблицу", {
+      reply_markup: createMainKeyboard(),
+    });
   }
 });
 
+// Команда /clear
 bot.command("clear", async (ctx) => {
   console.log("✅ Команда /clear получена");
-  await userService.clearHistory(ctx.from.id);
-  await ctx.reply("🗑️ История диалога очищена!");
-});
-
-bot.command("debug_voice", async (ctx) => {
-  console.log("✅ Команда /debug_voice получена");
-  if (ctx.message.reply_to_message && ctx.message.reply_to_message.voice) {
-    const voiceMsg = ctx.message.reply_to_message;
-    await ctx.reply(
-      `Структура голосового сообщения:\n${JSON.stringify(voiceMsg, null, 2)}`
-    );
-  } else {
-    await ctx.reply(
-      "Ответьте этой командой на голосовое сообщение для диагностики"
-    );
+  try {
+    await userService.clearHistory(ctx.from.id);
+    await ctx.reply("🗑️ История диалога очищена!", {
+      reply_markup: createMainKeyboard(),
+    });
+  } catch (error) {
+    console.error("❌ Ошибка в команде /clear:", error);
+    await ctx.reply("❌ Ошибка при очистке истории", {
+      reply_markup: createMainKeyboard(),
+    });
   }
 });
 
-// ОБЩИЙ ОБРАБОТЧИК СООБЩЕНИЙ
-bot.on("message", async (ctx) => {
-  console.log("📨 Получено сообщение от пользователя:", ctx.from.id);
+// Обработка текстовых сообщений от кнопок
+bot.on("message:text", async (ctx) => {
+  const text = ctx.message.text;
 
+  // Проверяем авторизацию
   if (ctx.from.id !== parseInt(process.env.YOUR_USER_ID)) {
     console.log(
       "🔒 Попытка доступа от неавторизованного пользователя:",
@@ -131,49 +210,70 @@ bot.on("message", async (ctx) => {
     return ctx.reply("🔒 Доступ ограничен");
   }
 
-  // Если сообщение уже обработано как команда - выходим
-  if (ctx.message.text && ctx.message.text.startsWith("/")) {
-    console.log("⚡ Сообщение начинается с /, пропускаем общий обработчик");
-    return;
-  }
+  // Если сообщение начинается с / - это команда, пропускаем
+  if (text.startsWith("/")) return;
 
-  // Обработка голосовых сообщений
-  if (ctx.message.voice) {
-    console.log("🎤 Получено голосовое сообщение");
-    try {
+  console.log("📨 Текстовое сообщение от кнопки:", text);
+
+  switch (text) {
+    case "💰 Курсы валют":
+      await ctx.reply("🔄 Получаю актуальные курсы валют...");
+      const currencyData = await currencyService.getCurrencyDataFormatted();
+      await ctx.reply(currencyData || "Не удалось получить данные о валютах", {
+        reply_markup: createMainKeyboard(),
+      });
+      break;
+
+    case "₿ Криптовалюты":
+      await ctx.reply("🔄 Получаю данные о криптовалютах...");
+      const cryptoData = await cryptoService.getCryptoDataFormatted();
       await ctx.reply(
-        '🎤 Голосовое сообщение получено! \n\nЧтобы я мог его обработать, пожалуйста:\n1. Нажмите на голосовое сообщение\n2. Выберите "Распознать речь"\n3. Скопируйте распознанный текст\n4. Отправьте его мне как текстовое сообщение'
+        cryptoData || "Не удалось получить данные о криптовалютах",
+        {
+          reply_markup: createMainKeyboard(),
+        }
       );
-      return;
-    } catch (error) {
-      console.error("Ошибка обработки голосового:", error);
-      await ctx.reply("❌ Ошибка обработки голосового сообщения");
-      return;
-    }
-  }
+      break;
 
-  // Обработка пересланных сообщений
-  if (ctx.message.forward_from_message_id && ctx.message.text) {
-    console.log("📨 Получено пересланное сообщение");
-    try {
-      const originalMessage = await ctx.api.getMessage(
-        ctx.chat.id,
-        ctx.message.forward_from_message_id
+    case "🌤️ Погода":
+      await ctx.reply("🔄 Получаю данные о погоде...");
+      const weatherData = await weatherService.getWeatherDataFormatted();
+      await ctx.reply(weatherData, {
+        reply_markup: createMainKeyboard(),
+      });
+      break;
+
+    case "📊 Google Таблица":
+      await ctx.reply(
+        "📊 <b>Работа с Google Таблицей</b>\n\nДля записи данных используйте команду:\n<code>/add A1 Ваш текст</code>\n\nПримеры:\n<code>/add A1 Привет мир</code>\n<code>/add B2 Данные для анализа</code>",
+        {
+          parse_mode: "HTML",
+          reply_markup: createMainKeyboard(),
+        }
       );
+      break;
 
-      if (originalMessage.voice && ctx.message.text) {
-        await processTextMessage(ctx, ctx.message.text);
-        return;
-      }
-    } catch (error) {
-      console.error("Ошибка обработки пересланного сообщения:", error);
-    }
-  }
+    case "🧹 Очистить историю":
+      await userService.clearHistory(ctx.from.id);
+      await ctx.reply("🗑️ История диалога очищена!", {
+        reply_markup: createMainKeyboard(),
+      });
+      break;
 
-  // Обработка обычных текстовых сообщений
-  if (ctx.message.text) {
-    console.log("📝 Текстовое сообщение:", ctx.message.text);
-    await processTextMessage(ctx, ctx.message.text);
+    case "ℹ️ Помощь":
+      await ctx.reply(
+        `🎯 <b>Доступные команды:</b>\n\n/currency - Курсы валют ЦБ РФ\n/crypto - Топ-10 криптовалют\n/weather - Прогноз погоды\n/add - Запись в таблицу\n/clear - Очистить историю\n/help - Справка\n\n💡 <b>Или используйте кнопки</b> для быстрого доступа!`,
+        {
+          parse_mode: "HTML",
+          reply_markup: createMainKeyboard(),
+        }
+      );
+      break;
+
+    default:
+      // Если это не кнопка, обрабатываем как обычное сообщение
+      await processTextMessage(ctx, text);
+      break;
   }
 });
 
@@ -183,28 +283,36 @@ async function processTextMessage(ctx, text) {
   console.log("🔧 Обработка текстового сообщения:", text);
 
   try {
-    const preciseData = await externalData.getPreciseData(text);
+    // Показываем статус "печатает"
+    await ctx.api.sendChatAction(ctx.chat.id, "typing");
+
+    const preciseData = await externalDataService.getPreciseData(text);
 
     if (preciseData) {
       console.log("📊 Найдены точные данные для ответа");
-      await ctx.reply(preciseData);
+      await ctx.reply(preciseData, {
+        reply_markup: createMainKeyboard(),
+      });
       await userService.addToHistory(userId, text, "user");
       await userService.addToHistory(userId, preciseData, "assistant");
       return;
     }
 
     console.log("🤖 Передаю запрос нейросети GigaChat");
-    await ctx.api.sendChatAction(ctx.chat.id, "typing");
     await userService.addToHistory(userId, text, "user");
     const history = await userService.getChatHistory(userId);
     const messages = [getSystemPrompt(), ...history];
 
     const aiResponse = await askGigaChat(messages);
     await userService.addToHistory(userId, aiResponse, "assistant");
-    await ctx.reply(aiResponse);
+    await ctx.reply(aiResponse, {
+      reply_markup: createMainKeyboard(),
+    });
   } catch (error) {
     console.error("❌ Ошибка обработки:", error);
-    await ctx.reply("❌ Произошла ошибка при обработке запроса");
+    await ctx.reply("❌ Произошла ошибка при обработке запроса", {
+      reply_markup: createMainKeyboard(),
+    });
   }
 }
 
@@ -212,48 +320,51 @@ async function processTextMessage(ctx, text) {
 bot.catch((error) => {
   console.error("❌ Ошибка в обработчике бота:", error);
 });
+
+// Обработчик вебхуков
+app.post("/webhook", async (req, res) => {
+  try {
+    console.log("📨 Получен вебхук от Telegram");
+    await bot.handleUpdate(req.body, res);
+  } catch (error) {
+    console.error("Error in webhook handler:", error);
+    res.status(500).send("Error");
+  }
+});
+
 async function startBot() {
   try {
     console.log("🔄 Инициализация бота...");
-    await bot.init();
-    
-    console.log("🔄 Инициализация базы данных...");
     await initDatabase();
     await userService.init();
     console.log("✅ База данных готова");
 
-    // Тестируем подключение к Google Sheets
-    console.log("🔄 Тестирование подключения к Google Sheets...");
-    try {
-      const testWrite = await writeToCell("A1", "Test connection");
-      if (testWrite) {
-        console.log("✅ Google Sheets подключение успешно");
-      } else {
-        console.log("❌ Google Sheets: запись не удалась");
-      }
-    } catch (error) {
-      console.error("❌ Ошибка подключения к Google Sheets:", error.message);
-    }
+    // Устанавливаем список команд для меню
+    await bot.api.setMyCommands([
+      { command: "currency", description: "Курсы валют ЦБ РФ" },
+      { command: "crypto", description: "Топ-10 криптовалют" },
+      { command: "weather", description: "Прогноз погоды" },
+      { command: "add", description: "Запись в Google Таблицу" },
+      { command: "clear", description: "Очистить историю диалога" },
+      { command: "help", description: "Справка по командам" },
+    ]);
 
-    // 🔥 ВЫБОР РЕЖИМА РАБОТЫ В ЗАВИСИМОСТИ ОТ ОКРУЖЕНИЯ
+    console.log("✅ Список команд установлен");
+
+    // Режим работы
     if (process.env.NODE_ENV === "production") {
       // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)
       console.log("🌐 Используется режим Webhook для продакшена");
 
-      // Устанавливаем вебхук
-      const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/webhook`;
-      await bot.api.setWebhook(webhookUrl);
-      console.log(`✅ Вебхук установлен на: ${webhookUrl}`);
+      if (!process.env.RENDER_EXTERNAL_URL) {
+        throw new Error("RENDER_EXTERNAL_URL environment variable is not set!");
+      }
 
-      // Настраиваем обработчик вебхуков
-      app.post("/webhook", (req, res) => {
-        try {
-          bot.handleUpdate(req.body, res);
-        } catch (error) {
-          console.error("Error handling update:", error);
-          res.status(500).send("Error");
-        }
-      });
+      const webhookUrl = process.env.RENDER_EXTERNAL_URL + "/webhook";
+      console.log(`🔄 Устанавливаем вебхук на: ${webhookUrl}`);
+
+      await bot.api.setWebhook(webhookUrl);
+      console.log("✅ Вебхук установлен");
     } else {
       // РЕЖИМ ДЛЯ ЛОКАЛЬНОЙ РАЗРАБОТКИ (ЛОНГ-ПОЛЛИНГ)
       console.log("🤖 Используется Long Polling для локальной разработки");
@@ -266,27 +377,29 @@ async function startBot() {
   }
 }
 
-// Запускаем серсер
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  startBot().catch(console.error);
+// Запускаем сервер
+const server = app.listen(PORT, async () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  try {
+    await startBot();
+    console.log("✅ Бот успешно инициализирован");
+  } catch (error) {
+    console.error("💥 Не удалось запустить бота:", error);
+    process.exit(1);
+  }
 });
 
-// Единые обработчики завершения процесса
-function setupProcessHandlers() {
-  process.on("SIGINT", () => {
-    console.log("\n🛑 Остановка бота...");
-    server.close(() => {
-      process.exit(0);
-    });
+// Обработчики завершения процесса
+process.on("SIGINT", () => {
+  console.log("\n🛑 Остановка бота...");
+  server.close(() => {
+    process.exit(0);
   });
+});
 
-  process.on("SIGTERM", () => {
-    console.log("\n🛑 Получен сигнал завершения...");
-    server.close(() => {
-      process.exit(0);
-    });
+process.on("SIGTERM", () => {
+  console.log("\n🛑 Получен сигнал завершения...");
+  server.close(() => {
+    process.exit(0);
   });
-}
-
-setupProcessHandlers();
+});

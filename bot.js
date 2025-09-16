@@ -2,6 +2,7 @@ const { Bot, Keyboard, InlineKeyboard } = require("grammy");
 const express = require("express");
 
 // Правильные импорты
+const { pingServer } = require("./ping");
 const { initDatabase } = require("./database/db");
 const { userService, getSystemPrompt } = require("./services/userProfile");
 const { askGigaChat } = require("./services/gigaChat");
@@ -396,6 +397,14 @@ async function startServer() {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log("✅ Бот успешно инициализирован и готов к работе");
     });
+
+    // Добавьте после запуска сервера
+    app.get("/health", (req, res) => {
+      res.json({ status: "ok", timestamp: new Date().toISOString() });
+    });
+
+    // Запустите пинг-сервис
+    pingServer();
 
     // Обработчики завершения процесса
     process.on("SIGINT", () => {

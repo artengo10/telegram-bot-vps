@@ -1,4 +1,3 @@
-
 const { Bot } = require("grammy");
 const express = require("express");
 const { userService, getSystemPrompt } = require("./services/userProfile");
@@ -213,9 +212,9 @@ async function processTextMessage(ctx, text) {
 bot.catch((error) => {
   console.error("❌ Ошибка в обработчике бота:", error);
 });
-
 async function startBot() {
   try {
+    await bot.init();
     console.log("🔄 Инициализация базы данных...");
     await initDatabase();
     await userService.init();
@@ -245,7 +244,7 @@ async function startBot() {
       console.log(`✅ Вебхук установлен на: ${webhookUrl}`);
 
       // Настраиваем обработчик вебхуков
-      app.use("/webhook", (req, res) => {
+      app.post("/webhook", (req, res) => {
         try {
           bot.handleUpdate(req.body, res);
         } catch (error) {

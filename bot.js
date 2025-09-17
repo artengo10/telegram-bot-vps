@@ -15,6 +15,10 @@ const { writeToCell } = require("./services/googleSheets");
 // Загрузка переменных окружения
 require("dotenv").config();
 
+// ДЛЯ ОТЛАДКИ: проверим какой токен actually используется
+console.log("🔍 DEBUG: Current BOT_TOKEN from process.env:", process.env.BOT_TOKEN ? "SET" : "NOT SET");
+console.log("🔍 DEBUG: Token starts with:", process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 10) + "..." : "NULL");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 

@@ -198,7 +198,7 @@ bot.command("clear", async (ctx) => {
   }
 });
 
-// Обработка текстовых сообщений от кнопок
+/* // Обработка текстовых сообщений от кнопок
 bot.on("message:text", async (ctx) => {
   const text = ctx.message.text;
 
@@ -276,7 +276,7 @@ bot.on("message:text", async (ctx) => {
       await processTextMessage(ctx, text);
       break;
   }
-});
+}); */
 
 // Функция обработки текстовых сообщений
 async function processTextMessage(ctx, text) {

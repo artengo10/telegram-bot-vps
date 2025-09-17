@@ -19,6 +19,7 @@ require("dotenv").config();
 console.log("🔍 DEBUG: Current BOT_TOKEN from process.env:", process.env.BOT_TOKEN ? "SET" : "NOT SET");
 console.log("🔍 DEBUG: Token starts with:", process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 10) + "..." : "NULL");
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -50,6 +51,14 @@ function createMainKeyboard() {
 
 // Команда /start
 bot.command("start", async (ctx) => {
+  // ЗАЩИТА ОТ ЗАЦИКЛИВАНИЯ: проверяем, не обрабатывали ли мы уже это сообщение
+  if (ctx.me && ctx.from.id === ctx.me.id) {
+    console.log(
+      "🛑 Защита от зацикливания: игнорируем сообщение от самого себя"
+    );
+    return;
+  }
+
   console.log("✅ Команда /start получена от пользователя:", ctx.from.id);
 
   const welcomeText = `🤖 <b>Добро пожаловать!</b> Я ваш AI-ассистент с расширенными функциями.
@@ -207,6 +216,7 @@ bot.on("message:text", async (ctx) => {
   const text = ctx.message.text;
   const chatId = ctx.chat.id;
   const messageId = ctx.message.message_id;
+
   
   // ДОБАВИМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
   console.log("📨 INCOMING MESSAGE:", {
@@ -218,6 +228,7 @@ bot.on("message:text", async (ctx) => {
   });
 
   // Проверяем, не от бота ли сообщение (чтобы избежать цикла)
+
   if (ctx.from.is_bot) {
     console.log("🛑 Сообщение от другого бота, игнорируем");
     return;

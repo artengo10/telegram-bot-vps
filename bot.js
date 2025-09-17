@@ -198,9 +198,26 @@ bot.command("clear", async (ctx) => {
   }
 });
 
-/* // Обработка текстовых сообщений от кнопок
+// Обработка текстовых сообщений от кнопок
 bot.on("message:text", async (ctx) => {
   const text = ctx.message.text;
+  const chatId = ctx.chat.id;
+  const messageId = ctx.message.message_id;
+  
+  // ДОБАВИМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+  console.log("📨 INCOMING MESSAGE:", {
+    text: text,
+    chatId: chatId,
+    messageId: messageId,
+    from: ctx.from,
+    date: new Date(ctx.message.date * 1000).toISOString()
+  });
+
+  // Проверяем, не от бота ли сообщение (чтобы избежать цикла)
+  if (ctx.from.is_bot) {
+    console.log("🛑 Сообщение от другого бота, игнорируем");
+    return;
+  }
 
   // Проверяем авторизацию
   if (ctx.from.id !== parseInt(process.env.YOUR_USER_ID)) {
@@ -276,7 +293,7 @@ bot.on("message:text", async (ctx) => {
       await processTextMessage(ctx, text);
       break;
   }
-}); */
+});
 
 // Функция обработки текстовых сообщений
 async function processTextMessage(ctx, text) {

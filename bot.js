@@ -322,10 +322,11 @@ bot.catch((error) => {
   console.error("❌ Ошибка в обработчике бота:", error);
 });
 
-// Обработчик вебхуков
-app.post("/webhook", async (req, res) => {
+// Обработчик вебхуков для Grammy
+app.use("/webhook", async (req, res, next) => {
   try {
     console.log("📨 Получен вебхук от Telegram");
+    // Преобразуем запрос Express в формат, понятный для grammY
     await bot.handleUpdate(req.body, res);
   } catch (error) {
     console.error("Error in webhook handler:", error);

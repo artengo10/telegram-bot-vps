@@ -1,5 +1,5 @@
 const https = require("https");
-const url = process.env.RENDER_URL || "https://your-bot-url.onrender.com";
+const url = process.env.RENDER_URL || "https://telegram-assistent.onrender.com";
 
 function pingServer() {
   https

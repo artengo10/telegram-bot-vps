@@ -2,7 +2,6 @@ const { Bot, Keyboard, InlineKeyboard } = require("grammy");
 const express = require("express");
 
 // Правильные импорты
-const { pingServer } = require("./ping");
 const { initDatabase } = require("./database/db");
 const { userService, getSystemPrompt } = require("./services/userProfile");
 const { askGigaChat } = require("./services/gigaChat");
@@ -29,6 +28,17 @@ app.use(express.json());
 // Health check endpoint
 app.get("/", (req, res) => {
   res.json({ status: "Bot is running!" });
+});
+
+// Health check endpoint для Render (на главной странице)
+app.get("/", (req, res) => {
+  res.status(200).json({ 
+    status: "OK", 
+    timestamp: new Date().toISOString(),
+    message: "Bot is healthy and running",
+    service: "Telegram Bot API",
+    version: "1.0.0"
+  });
 });
 
 // Инициализация бота
@@ -436,25 +446,23 @@ async function startServer() {
       res.json({ status: "ok", timestamp: new Date().toISOString() });
     });
 
-    // Запустите пинг-сервис
-    pingServer();
-
-    // Обработчики завершения процесса
+     // Обработчики завершения процесса
     process.on("SIGINT", () => {
-      console.log("\n🛑 Остановка бота...");
-      server.close(() => {
-        process.exit(0);
-      });
+        console.log("\n🛑 Остановка бота...");
+        server.close(() => {
+            process.exit(0);
+        });
     });
 
     process.on("SIGTERM", () => {
-      console.log("\n🛑 Получен сигнал завершения...");
-      server.close(() => {
-        process.exit(0);
-      });
+        console.log("\n🛑 Получен сигнал завершения...");
+        server.close(() => {
+            process.exit(0);
+        });
     });
 
     return server;
+
   } catch (error) {
     console.error("💥 Не удалось запустить сервер:", error);
     process.exit(1);

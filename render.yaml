@@ -1,0 +1,54 @@
+services:
+  - type: web
+    name: telegram-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      # Обязательная переменная для web-сервисов на Render
+      - key: PORT
+        value: 3000
+      # Режим работы (production/development)
+      - key: NODE_ENV
+        value: production
+      
+      # --- TELEGRAM ---
+      - key: BOT_TOKEN
+        fromSecret: BOT_TOKEN
+      - key: YOUR_USER_ID
+        fromSecret: YOUR_USER_ID
+      
+      # --- GIGACHAT ---
+      - key: AUTH_KEY
+        fromSecret: AUTH_KEY
+      
+      # --- OPENWEATHER ---
+      - key: WEATHER_API_KEY
+        fromSecret: WEATHER_API_KEY
+      
+      # --- GOOGLE SERVICE ACCOUNT ---
+      - key: GOOGLE_TYPE
+        value: service_account
+      - key: GOOGLE_PROJECT_ID
+        fromSecret: GOOGLE_PROJECT_ID
+      - key: GOOGLE_PRIVATE_KEY_ID
+        fromSecret: GOOGLE_PRIVATE_KEY_ID
+      - key: GOOGLE_PRIVATE_KEY
+        fromSecret: GOOGLE_PRIVATE_KEY
+      - key: GOOGLE_CLIENT_EMAIL
+        fromSecret: GOOGLE_CLIENT_EMAIL
+      - key: GOOGLE_CLIENT_ID
+        fromSecret: GOOGLE_CLIENT_ID
+      - key: GOOGLE_AUTH_URI
+        value: https://accounts.google.com/o/oauth2/auth
+      - key: GOOGLE_TOKEN_URI
+        value: https://oauth2.googleapis.com/token
+      - key: GOOGLE_AUTH_PROVIDER_X509_CERT_URL
+        value: https://www.googleapis.com/oauth2/v1/certs
+      - key: GOOGLE_CLIENT_X509_CERT_URL
+        fromSecret: GOOGLE_CLIENT_X509_CERT_URL
+      
+      # --- GOOGLE SHEETS ---
+      - key: GOOGLE_SHEET_ID
+        fromSecret: GOOGLE_SHEET_ID

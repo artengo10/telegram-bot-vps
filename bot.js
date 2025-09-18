@@ -15,9 +15,16 @@ const { writeToCell } = require("./services/googleSheets");
 require("dotenv").config();
 
 // ДЛЯ ОТЛАДКИ: проверим какой токен actually используется
-console.log("🔍 DEBUG: Current BOT_TOKEN from process.env:", process.env.BOT_TOKEN ? "SET" : "NOT SET");
-console.log("🔍 DEBUG: Token starts with:", process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 10) + "..." : "NULL");
-
+console.log(
+  "🔍 DEBUG: Current BOT_TOKEN from process.env:",
+  process.env.BOT_TOKEN ? "SET" : "NOT SET"
+);
+console.log(
+  "🔍 DEBUG: Token starts with:",
+  process.env.BOT_TOKEN
+    ? process.env.BOT_TOKEN.substring(0, 10) + "..."
+    : "NULL"
+);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,20 +32,20 @@ const PORT = process.env.PORT || 3000;
 // Middleware для парсинга JSON
 app.use(express.json());
 
-// Health check endpoint
-app.get("/", (req, res) => {
-  res.json({ status: "Bot is running!" });
-});
-
 // Health check endpoint для Render (на главной странице)
 app.get("/", (req, res) => {
-  res.status(200).json({ 
-    status: "OK", 
+  res.status(200).json({
+    status: "OK",
     timestamp: new Date().toISOString(),
     message: "Bot is healthy and running",
     service: "Telegram Bot API",
-    version: "1.0.0"
+    version: "1.0.0",
   });
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Инициализация бота
@@ -227,14 +234,13 @@ bot.on("message:text", async (ctx) => {
   const chatId = ctx.chat.id;
   const messageId = ctx.message.message_id;
 
-  
   // ДОБАВИМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
   console.log("📨 INCOMING MESSAGE:", {
     text: text,
     chatId: chatId,
     messageId: messageId,
     from: ctx.from,
-    date: new Date(ctx.message.date * 1000).toISOString()
+    date: new Date(ctx.message.date * 1000).toISOString(),
   });
 
   // Проверяем, не от бота ли сообщение (чтобы избежать цикла)
@@ -365,10 +371,10 @@ bot.catch((error) => {
 });
 
 // Обработчик вебхуков для Grammy
-app.use("/webhook", async (req, res, next) => {
+// ВЕБХУК ДОЛЖЕН БЫТЬ ОДИН И ПРАВИЛЬНО НАСТРОЕН
+app.use(async (req, res, next) => {
   try {
-    console.log("📨 Получен вебхук от Telegram");
-    // Преобразуем запрос Express в формат, понятный для grammY
+    // Важно: grammY умеет сам парсить обновления из req.body
     await bot.handleUpdate(req.body, res);
   } catch (error) {
     console.error("Error in webhook handler:", error);
@@ -401,26 +407,18 @@ async function initializeBot() {
 
     console.log("✅ Список команд установлен");
 
-    // Режим работы
-    if (process.env.NODE_ENV === "production") {
-      // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)
-      console.log("🌐 Используется режим Webhook для продакшена");
+    // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)
+    console.log("🌐 Используется режим Webhook для продакшена");
 
-      if (!process.env.RENDER_EXTERNAL_URL) {
-        throw new Error("RENDER_EXTERNAL_URL environment variable is not set!");
-      }
-
-      const webhookUrl = process.env.RENDER_EXTERNAL_URL + "/webhook";
-      console.log(`🔄 Устанавливаем вебхук на: ${webhookUrl}`);
-
-      await bot.api.setWebhook(webhookUrl);
-      console.log("✅ Вебхук установлен");
-    } else {
-      // РЕЖИМ ДЛЯ ЛОКАЛЬНОЙ РАЗРАБОТКИ (ЛОНГ-ПОЛЛИНГ)
-      console.log("🤖 Используется Long Polling для локальной разработки");
-      bot.start();
-      console.log("✅ Бот успешно запущен в режиме polling");
+    if (!process.env.RENDER_EXTERNAL_URL) {
+      throw new Error("RENDER_EXTERNAL_URL environment variable is not set!");
     }
+
+    const webhookUrl = process.env.RENDER_EXTERNAL_URL + "/webhook";
+    console.log(`🔄 Устанавливаем вебхук на: ${webhookUrl}`);
+
+    await bot.api.setWebhook(webhookUrl);
+    console.log("✅ Вебхук установлен");
 
     return true;
   } catch (error) {
@@ -441,28 +439,22 @@ async function startServer() {
       console.log("✅ Бот успешно инициализирован и готов к работе");
     });
 
-    // Добавьте после запуска сервера
-    app.get("/health", (req, res) => {
-      res.json({ status: "ok", timestamp: new Date().toISOString() });
-    });
-
-     // Обработчики завершения процесса
+    // Обработчики завершения процесса
     process.on("SIGINT", () => {
-        console.log("\n🛑 Остановка бота...");
-        server.close(() => {
-            process.exit(0);
-        });
+      console.log("\n🛑 Остановка бота...");
+      server.close(() => {
+        process.exit(0);
+      });
     });
 
     process.on("SIGTERM", () => {
-        console.log("\n🛑 Получен сигнал завершения...");
-        server.close(() => {
-            process.exit(0);
-        });
+      console.log("\n🛑 Получен сигнал завершения...");
+      server.close(() => {
+        process.exit(0);
+      });
     });
 
     return server;
-
   } catch (error) {
     console.error("💥 Не удалось запустить сервер:", error);
     process.exit(1);

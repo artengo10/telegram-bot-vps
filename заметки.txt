@@ -20,15 +20,13 @@ bot.js
 credentials.json
 package-lock.json
 package.json
-ping.js
-Procfile
-
+Procfile (я не понимаю зачм он нужен но там есть код: web: node bot.js)
+render.yaml
 
 const { Bot, Keyboard, InlineKeyboard } = require("grammy");
 const express = require("express");
 
 // Правильные импорты
-const { pingServer } = require("./ping");
 const { initDatabase } = require("./database/db");
 const { userService, getSystemPrompt } = require("./services/userProfile");
 const { askGigaChat } = require("./services/gigaChat");
@@ -52,9 +50,20 @@ const PORT = process.env.PORT || 3000;
 // Middleware для парсинга JSON
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoint для Render (на главной странице)
 app.get("/", (req, res) => {
-  res.json({ status: "Bot is running!" });
+  res.status(200).json({ 
+    status: "OK", 
+    timestamp: new Date().toISOString(),
+    message: "Bot is healthy and running",
+    service: "Telegram Bot API",
+    version: "1.0.0"
+  });
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Инициализация бота
@@ -381,10 +390,10 @@ bot.catch((error) => {
 });
 
 // Обработчик вебхуков для Grammy
-app.use("/webhook", async (req, res, next) => {
+// ВЕБХУК ДОЛЖЕН БЫТЬ ОДИН И ПРАВИЛЬНО НАСТРОЕН
+app.use(async (req, res, next) => {
   try {
-    console.log("📨 Получен вебхук от Telegram");
-    // Преобразуем запрос Express в формат, понятный для grammY
+    // Важно: grammY умеет сам парсить обновления из req.body
     await bot.handleUpdate(req.body, res);
   } catch (error) {
     console.error("Error in webhook handler:", error);
@@ -417,26 +426,18 @@ async function initializeBot() {
 
     console.log("✅ Список команд установлен");
 
-    // Режим работы
-    if (process.env.NODE_ENV === "production") {
-      // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)
-      console.log("🌐 Используется режим Webhook для продакшена");
+    // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)
+    console.log("🌐 Используется режим Webhook для продакшена");
 
-      if (!process.env.RENDER_EXTERNAL_URL) {
-        throw new Error("RENDER_EXTERNAL_URL environment variable is not set!");
-      }
-
-      const webhookUrl = process.env.RENDER_EXTERNAL_URL + "/webhook";
-      console.log(`🔄 Устанавливаем вебхук на: ${webhookUrl}`);
-
-      await bot.api.setWebhook(webhookUrl);
-      console.log("✅ Вебхук установлен");
-    } else {
-      // РЕЖИМ ДЛЯ ЛОКАЛЬНОЙ РАЗРАБОТКИ (ЛОНГ-ПОЛЛИНГ)
-      console.log("🤖 Используется Long Polling для локальной разработки");
-      bot.start();
-      console.log("✅ Бот успешно запущен в режиме polling");
+    if (!process.env.RENDER_EXTERNAL_URL) {
+      throw new Error("RENDER_EXTERNAL_URL environment variable is not set!");
     }
+
+    const webhookUrl = process.env.RENDER_EXTERNAL_URL + "/webhook";
+    console.log(`🔄 Устанавливаем вебхук на: ${webhookUrl}`);
+
+    await bot.api.setWebhook(webhookUrl);
+    console.log("✅ Вебхук установлен");
 
     return true;
   } catch (error) {
@@ -457,30 +458,23 @@ async function startServer() {
       console.log("✅ Бот успешно инициализирован и готов к работе");
     });
 
-    // Добавьте после запуска сервера
-    app.get("/health", (req, res) => {
-      res.json({ status: "ok", timestamp: new Date().toISOString() });
-    });
-
-    // Запустите пинг-сервис
-    pingServer();
-
-    // Обработчики завершения процесса
+     // Обработчики завершения процесса
     process.on("SIGINT", () => {
-      console.log("\n🛑 Остановка бота...");
-      server.close(() => {
-        process.exit(0);
-      });
+        console.log("\n🛑 Остановка бота...");
+        server.close(() => {
+            process.exit(0);
+        });
     });
 
     process.on("SIGTERM", () => {
-      console.log("\n🛑 Получен сигнал завершения...");
-      server.close(() => {
-        process.exit(0);
-      });
+        console.log("\n🛑 Получен сигнал завершения...");
+        server.close(() => {
+            process.exit(0);
+        });
     });
 
     return server;
+
   } catch (error) {
     console.error("💥 Не удалось запустить сервер:", error);
     process.exit(1);

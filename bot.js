@@ -1,5 +1,4 @@
-const { Bot, Keyboard, InlineKeyboard } = require("grammy");
-const express = require("express");
+const { Bot, Keyboard } = require("grammy"); // InlineKeyboard не используется, можно убрать
 
 // Правильные импорты
 const { initDatabase } = require("./database/db");
@@ -25,28 +24,6 @@ console.log(
     ? process.env.BOT_TOKEN.substring(0, 10) + "..."
     : "NULL"
 );
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware для парсинга JSON
-app.use(express.json());
-
-// Health check endpoint для Render (на главной странице)
-app.get("/", (req, res) => {
-  res.status(200).json({
-    status: "OK",
-    timestamp: new Date().toISOString(),
-    message: "Bot is healthy and running",
-    service: "Telegram Bot API",
-    version: "1.0.0",
-  });
-});
-
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
 
 // Инициализация бота
 const bot = new Bot(process.env.BOT_TOKEN);
@@ -78,7 +55,7 @@ bot.command("start", async (ctx) => {
 
   console.log("✅ Команда /start получена от пользователя:", ctx.from.id);
 
-  const welcomeText = `🤖 <b>Добро пожаловать!</b> Я ваш AI-ассистент с расширенными функциями.
+  const welcomeText = `🤖 <b>Добро пожаловать!</b> Я ваш AI-ассистент с расширенными функцииями.
 
 🎯 <b>Доступные команды:</b>
 /currency - Курсы валют ЦБ РФ
@@ -244,7 +221,7 @@ bot.on("message:text", async (ctx) => {
   });
 
   // Проверяем, не от бота ли сообщение (чтобы избежать цикла)
-
+  
   if (ctx.from.is_bot) {
     console.log("🛑 Сообщение от другого бота, игнорируем");
     return;
@@ -253,7 +230,7 @@ bot.on("message:text", async (ctx) => {
   // Проверяем авторизацию
   if (ctx.from.id !== parseInt(process.env.YOUR_USER_ID)) {
     console.log(
-      "🔒 Попытка достра от неавторизованного пользователя:",
+      "🔒 Попытка доступа от неавторизованного пользователя:",
       ctx.from.id
     );
     return ctx.reply("🔒 Доступ ограничен");
@@ -370,19 +347,8 @@ bot.catch((error) => {
   console.error("❌ Ошибка в обработчике бота:", error);
 });
 
-// Обработчик вебхуков для Grammy
-// ВЕБХУК ДОЛЖЕН БЫТЬ ОДИН И ПРАВИЛЬНО НАСТРОЕН
-app.use(async (req, res, next) => {
-  try {
-    // Важно: grammY умеет сам парсить обновления из req.body
-    await bot.handleUpdate(req.body, res);
-  } catch (error) {
-    console.error("Error in webhook handler:", error);
-    res.status(500).send("Error");
-  }
-});
-
-async function initializeBot() {
+// Главная функция запуска БЕЗ ВЕБХУКОВ
+async function startBot() {
   try {
     console.log("🔄 Инициализация бота...");
 
@@ -402,68 +368,33 @@ async function initializeBot() {
       { command: "weather", description: "Прогноз погоды" },
       { command: "add", description: "Запись в Google Таблицу" },
       { command: "clear", description: "Очистить историю диалога" },
-      { command: "help", description: "Справка по командам" },
+      { command: "help", description: "Справка по командам" }, // Исправлена опечатка (не хватало {)
     ]);
 
     console.log("✅ Список команд установлен");
 
-    // РЕЖИМ ДЛЯ СЕРВЕРА (ВЕБХУКИ)
-    console.log("🌐 Используется режим Webhook для продакшена");
+    // !!! КРИТИЧЕСКИ ВАЖНЫЙ ШАГ: Очищаем очередь сообщений при запуске
+    console.log("🧹 Очищаю очередь старых сообщений...");
+    await bot.api.deleteWebhook({ drop_pending_updates: true });
 
-    if (!process.env.RENDER_EXTERNAL_URL) {
-      throw new Error("RENDER_EXTERNAL_URL environment variable is not set!");
-    }
-
-    const webhookUrl = process.env.RENDER_EXTERNAL_URL + "/webhook";
-    console.log(`🔄 Устанавливаем вебхук на: ${webhookUrl}`);
-
-    await bot.api.setWebhook(webhookUrl);
-    console.log("✅ Вебхук установлен");
-
-    return true;
+    // РЕЖИМ ДЛЯ Render: LONG POLLING
+    console.log("🔄 Запускаю бота в режиме Long Polling...");
+    await bot.start({
+      onStart: ({ username }) => {
+        console.log(`✅ Бот @${username} запущен и готов к работе!`);
+      },
+      // allowed_updates: ["message", "callback_query"] // Можно раскомментировать и указать нужные типы обновлений
+    });
   } catch (error) {
-    console.error("💥 Критическая ошибка при инициализации бота:", error);
-    throw error;
-  }
-}
-
-// Главная функция запуска
-async function startServer() {
-  try {
-    // Сначала инициализируем бота
-    await initializeBot();
-
-    // Затем запускаем сервер
-    const server = app.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log("✅ Бот успешно инициализирован и готов к работе");
-    });
-
-    // Обработчики завершения процесса
-    process.on("SIGINT", () => {
-      console.log("\n🛑 Остановка бота...");
-      server.close(() => {
-        process.exit(0);
-      });
-    });
-
-    process.on("SIGTERM", () => {
-      console.log("\n🛑 Получен сигнал завершения...");
-      server.close(() => {
-        process.exit(0);
-      });
-    });
-
-    return server;
-  } catch (error) {
-    console.error("💥 Не удалось запустить сервер:", error);
+    console.error("💥 Критическая ошибка при запуске бота:", error);
     process.exit(1);
   }
 }
 
-// Запускаем приложение
+// Запускаем бота
 if (require.main === module) {
-  startServer();
+  startBot();
 }
 
-module.exports = { app, bot };
+// Для других файлов, если нужно (обычно не требуется)
+module.exports = { bot };

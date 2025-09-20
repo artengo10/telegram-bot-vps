@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: my-ai-bot
+    env_file:
+      - .env
+    volumes:
+      - ./database:/app/database  # Добавляем volume для базы данных
+    working_dir: /app
+    command: node bot.js
+    # restart: unless-stopped  # ЗАКОММЕНТИРУЙТЕ эту строку

@@ -1,4 +1,5 @@
 const https = require("https");
+const fetch = require("node-fetch");
 const { AUTH_KEY } = require("../config/keys");
 
 const customAgent = new https.Agent({ rejectUnauthorized: false });
@@ -12,13 +13,11 @@ let accessTokenCache = {
 async function getGigaChatToken() {
   // Если токен еще действителен, возвращаем его
   if (accessTokenCache.token && Date.now() < accessTokenCache.expiresAt) {
-    console.log("Используем кэшированный токен");
+    console.log("🔑 Используем кэшированный токен");
     return accessTokenCache.token;
   }
 
   try {
-   const fetch = require("node-fetch");
-
     const response = await fetch(
       "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
       {
@@ -46,10 +45,10 @@ async function getGigaChatToken() {
       expiresAt: Date.now() + 30 * 60 * 1000, // 30 минут
     };
 
-    console.log("Новый токен получен");
+    console.log("✅ Новый токен получен");
     return data.access_token;
   } catch (error) {
-    console.error("Ошибка получения токена:", error.message);
+    console.error("❌ Ошибка получения токена:", error.message);
     return null;
   }
 }
@@ -59,7 +58,11 @@ async function askGigaChat(messages, maxTokens = 512) {
     const accessToken = await getGigaChatToken();
     if (!accessToken) return "Ошибка подключения к AI";
 
-    const { default: fetch } = await import("node-fetch");
+    // Добавляем логирование отправляемых сообщений
+    console.log(
+      "📤 Отправляемые сообщения к GigaChat:",
+      JSON.stringify(messages, null, 2)
+    );
 
     const response = await fetch(
       "https://gigachat.devices.sberbank.ru/api/v1/chat/completions",
@@ -81,14 +84,27 @@ async function askGigaChat(messages, maxTokens = 512) {
     );
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        `❌ GigaChat error! status: ${response.status}, response: ${errorText}`
+      );
       throw new Error(`GigaChat error! status: ${response.status}`);
     }
 
     const data = await response.json();
+
+    // Добавляем логирование полученного ответа
+    console.log("📥 Ответ от GigaChat:", JSON.stringify(data, null, 2));
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error("❌ Неверный формат ответа от GigaChat:", data);
+      return "Извините, произошла ошибка при обработке ответа";
+    }
+
     return data.choices[0].message.content;
   } catch (error) {
-    console.error("Ошибка запроса к GigaChat:", error.message);
-    return "Извините, произошла ошибка";
+    console.error("❌ Ошибка запроса к GigaChat:", error.message);
+    return "Извините, произошла ошибка при обработке запроса";
   }
 }
 

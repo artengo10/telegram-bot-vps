@@ -1,11 +1,8 @@
-const { Database } = require("sqlite");
-const { open } = require("sqlite");
-const sqlite3 = require("sqlite3");
+const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
 
-// Убедимся, что директория существует
-const dbPath = path.join(__dirname, "bot.db");
+const dbPath = path.join(__dirname, "Bot.db");
 const dbDir = path.dirname(dbPath);
 
 if (!fs.existsSync(dbDir)) {
@@ -14,16 +11,19 @@ if (!fs.existsSync(dbDir)) {
 
 let dbInstance = null;
 
-async function initDatabase() {
+function initDatabase() {
   if (dbInstance) return dbInstance;
 
   try {
-    const db = await open({
-      filename: dbPath,
-      driver: sqlite3.Database,
-    });
+    console.log("🔍 Попытка подключения к базе данных...");
+    console.log("🔍 Путь к базе данных:", dbPath);
 
-    await db.exec(`
+    // Создаем новое подключение к базе данных
+    const db = new Database(dbPath);
+    console.log("✅ Подключение к SQLite базе данных установлено");
+
+    // Создаем таблицы
+    db.exec(`
       CREATE TABLE IF NOT EXISTS chat_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -33,7 +33,7 @@ async function initDatabase() {
       )
     `);
 
-    await db.exec(`
+    db.exec(`
       CREATE TABLE IF NOT EXISTS user_profiles (
         user_id INTEGER PRIMARY KEY,
         name TEXT,
@@ -49,6 +49,7 @@ async function initDatabase() {
     return db;
   } catch (error) {
     console.error("❌ Ошибка инициализации БД:", error);
+    console.error("❌ Stack trace:", error.stack);
     throw error;
   }
 }

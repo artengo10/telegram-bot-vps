@@ -1,6 +1,7 @@
-const { Bot, Keyboard } = require("grammy"); // InlineKeyboard не используется, можно убрать
-
+const { Bot, Keyboard } = require("grammy");
+const fetch = require("node-fetch");
 // Правильные импорты
+const speechService = require("./services/speechService");
 const { initDatabase } = require("./database/db");
 const { userService, getSystemPrompt } = require("./services/userProfile");
 const { askGigaChat } = require("./services/gigaChat");
@@ -9,9 +10,24 @@ const cryptoService = require("./services/cryptoService");
 const weatherService = require("./services/weatherService");
 const externalDataService = require("./services/externalData");
 const { writeToCell } = require("./services/googleSheets");
+const {
+  handleVoiceMessage,
+  handleSpecificQuestions, 
+} = require("./handlers/MessageHandlers");
 
 // Загрузка переменных окружения
 require("dotenv").config();
+
+// Обработчики непойманных ошибок
+process.on("uncaughtException", (error) => {
+  console.error("💥 UNCAUGHT EXCEPTION:", error);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("💥 UNHANDLED REJECTION at:", promise, "reason:", reason);
+  process.exit(1);
+});
 
 // ДЛЯ ОТЛАДКИ: проверим какой токен actually используется
 console.log(
@@ -221,7 +237,7 @@ bot.on("message:text", async (ctx) => {
   });
 
   // Проверяем, не от бота ли сообщение (чтобы избежать цикла)
-  
+
   if (ctx.from.is_bot) {
     console.log("🛑 Сообщение от другого бота, игнорируем");
     return;
@@ -304,6 +320,7 @@ bot.on("message:text", async (ctx) => {
 });
 
 // Функция обработки текстовых сообщений
+
 async function processTextMessage(ctx, text) {
   const userId = ctx.from.id;
   console.log("🔧 Обработка текстового сообщения:", text);
@@ -312,6 +329,15 @@ async function processTextMessage(ctx, text) {
     // Показываем статус "печатает"
     await ctx.api.sendChatAction(ctx.chat.id, "typing");
 
+    // Проверяем специфические вопросы
+    const specificAnswer = handleSpecificQuestions(text);
+    if (specificAnswer) {
+      await ctx.reply(specificAnswer, {
+        reply_markup: createMainKeyboard(),
+      });
+      return;
+    }
+
     const preciseData = await externalDataService.getPreciseData(text);
 
     if (preciseData) {
@@ -319,18 +345,27 @@ async function processTextMessage(ctx, text) {
       await ctx.reply(preciseData, {
         reply_markup: createMainKeyboard(),
       });
-      await userService.addToHistory(userId, text, "user");
-      await userService.addToHistory(userId, preciseData, "assistant");
       return;
     }
 
     console.log("🤖 Передаю запрос нейросети GigaChat");
-    await userService.addToHistory(userId, text, "user");
-    const history = await userService.getChatHistory(userId);
-    const messages = [getSystemPrompt(), ...history];
+    const history = [];
+    const userProfile = null; // Поскольку БД отключена
+    const systemPrompt = getSystemPrompt(userProfile);
+
+    // Явно добавляем текущее сообщение пользователя
+    const messages = [
+      systemPrompt,
+      ...history,
+      { role: "user", content: text },
+    ];
+
+    console.log(
+      "📤 Отправляемые сообщения к GigaChat:",
+      JSON.stringify(messages, null, 2)
+    );
 
     const aiResponse = await askGigaChat(messages);
-    await userService.addToHistory(userId, aiResponse, "assistant");
     await ctx.reply(aiResponse, {
       reply_markup: createMainKeyboard(),
     });
@@ -342,51 +377,51 @@ async function processTextMessage(ctx, text) {
   }
 }
 
-// Обработчик ошибок бота
-bot.catch((error) => {
-  console.error("❌ Ошибка в обработчике бота:", error);
-});
+// Обработчик голосовых сообщений (используем функцию из MessageHandlers)
+bot.on("message:voice", handleVoiceMessage);
 
-// Главная функция запуска БЕЗ ВЕБХУКОВ
+// Главная функция запуска
 async function startBot() {
   try {
     console.log("🔄 Инициализация бота...");
+    console.log("🔍 Шаг 1: Инициализация базы данных");
 
-    // Сначала инициализируем базу данных
-    await initDatabase();
-    await userService.init();
-    console.log("✅ База данных готова");
-
-    // Инициализируем самого бота
-    await bot.init();
-    console.log("✅ Бот инициализирован");
+    // ВРЕМЕННО ОТКЛЮЧАЕМ БАЗУ ДАННЫХ ДЛЯ ТЕСТА
+    console.log("⏸️  База данных временно отключена для теста");
+    // await initDatabase();
+    // console.log("🔍 Шаг 2: Инициализация userService");
+    // await userService.init();
+    console.log("✅ База данных пропущена");
 
     // Устанавливаем список команд для меню
+
     await bot.api.setMyCommands([
       { command: "currency", description: "Курсы валют ЦБ РФ" },
       { command: "crypto", description: "Топ-10 криптовалют" },
       { command: "weather", description: "Прогноз погоды" },
       { command: "add", description: "Запись в Google Таблицу" },
       { command: "clear", description: "Очистить историю диалога" },
-      { command: "help", description: "Справка по командам" }, // Исправлена опечатка (не хватало {)
+      { command: "help", description: "Справка по командам" },
     ]);
 
     console.log("✅ Список команд установлен");
 
-    // !!! КРИТИЧЕСКИ ВАЖНЫЙ ШАГ: Очищаем очередь сообщений при запуске
-    console.log("🧹 Очищаю очередь старых сообщений...");
-    await bot.api.deleteWebhook({ drop_pending_updates: true });
-
-    // РЕЖИМ ДЛЯ Render: LONG POLLING
+    // РЕЖИМ ДЛЯ Docker: LONG POLLING
     console.log("🔄 Запускаю бота в режиме Long Polling...");
+    console.log("🔍 Шаг 5: Запуск bot.start()");
+
     await bot.start({
       onStart: ({ username }) => {
         console.log(`✅ Бот @${username} запущен и готов к работе!`);
       },
-      // allowed_updates: ["message", "callback_query"] // Можно раскомментировать и указать нужные типы обновлений
     });
+
+    console.log(
+      "🔍 Шаг 6: После bot.start() - эта строка не должна быть видна при успешном запуске"
+    );
   } catch (error) {
     console.error("💥 Критическая ошибка при запуске бота:", error);
+    console.error("💥 Stack trace:", error.stack);
     process.exit(1);
   }
 }
@@ -396,5 +431,5 @@ if (require.main === module) {
   startBot();
 }
 
-// Для других файлов, если нужно (обычно не требуется)
+// Для других файлов, если нужно
 module.exports = { bot };

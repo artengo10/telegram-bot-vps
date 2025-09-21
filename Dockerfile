@@ -1,6 +1,11 @@
 FROM node:18-slim
 
-# Установка системных зависимостей
+# Используем российские зеркала для apt
+RUN echo "deb http://mirror.yandex.ru/debian bookworm main" > /etc/apt/sources.list && \
+    echo "deb http://mirror.yandex.ru/debian bookworm-updates main" >> /etc/apt/sources.list && \
+    echo "deb http://mirror.yandex.ru/debian-security bookworm-security main" >> /etc/apt/sources.list
+
+# Устанавливаем зависимости
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     python3 \
@@ -11,16 +16,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Копируем только package файлы для кэширования зависимостей
 COPY package*.json ./
+RUN npm install
 
-# Устанавливаем зависимости внутри контейнера
-RUN npm install --omit=dev
-
-# Создаем папку для базы данных
-RUN mkdir -p /app/database && chmod 777 /app/database
-
-# Копируем исходный код
 COPY . .
 
-CMD ["node", "bot.js"]
+CMD ["npm", "start"]

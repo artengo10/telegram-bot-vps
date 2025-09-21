@@ -11,21 +11,27 @@ let accessTokenCache = {
 };
 
 async function getGigaChatToken() {
-  // Если токен еще действителен, возвращаем его
   if (accessTokenCache.token && Date.now() < accessTokenCache.expiresAt) {
     console.log("🔑 Используем кэшированный токен");
     return accessTokenCache.token;
   }
 
   try {
+    // Декодируем AUTH_KEY чтобы получить client_id и client_secret
+    const authString = Buffer.from(process.env.AUTH_KEY, "base64").toString(
+      "utf-8"
+    );
+    const [client_id, client_secret] = authString.split(":");
+
     const response = await fetch(
       "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
       {
         method: "POST",
         headers: {
-          Authorization: `Basic ${AUTH_KEY}`,
           "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
+          Authorization: `Basic ${Buffer.from(
+            `${client_id}:${client_secret}`
+          ).toString("base64")}`,
           RqUID: generateUUID(),
         },
         body: "scope=GIGACHAT_API_PERS",

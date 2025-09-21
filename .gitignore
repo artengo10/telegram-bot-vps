@@ -1,3 +1,5 @@
+# Создаем новый .gitignore
+cat > .gitignore << EOL
 node_modules/
 .env
 .DS_Store
@@ -18,9 +20,7 @@ coverage/
 .vscode/
 *.swp
 *.swo
-*~c r e d e n t i a l s . j s o n  
- . e n v  
- n o d e _ m o d u l e s /  
-
-Dockerfile
-.dockerignore
+*~
+config/Keys.js
+database/Bot.db
+EOL

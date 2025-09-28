@@ -7,7 +7,8 @@ services:
     env_file:
       - .env
     volumes:
-      - ./database:/app/database  # Добавляем volume для базы данных
+      - ./database:/app/database
+      - /tmp:/tmp
     working_dir: /app
-    command: node bot.js
-  restart: unless-stopped  
+    restart: unless-stopped
+    # Убираем command, так как он указан в Dockerfile

@@ -37,7 +37,10 @@ function handleSpecificQuestions(text) {
   return null;
 }
 
+// УДАЛЯЕМ ЭТУ ФУНКЦИЮ, ТАК КАК ОНА НЕ ИСПОЛЬЗУЕТСЯ
+/*
 async function handleMessage(ctx) {
+  // {
   if (ctx.from.id !== YOUR_USER_ID) {
     return ctx.reply("Извините, этот бот приватный");
   }
@@ -88,6 +91,7 @@ async function handleMessage(ctx) {
   // Отправляем ответ пользователю
   await ctx.reply(aiResponse);
 }
+*/ 
 
 async function handleClearCommand(ctx) {
   if (ctx.from.id !== YOUR_USER_ID) return;
@@ -111,64 +115,82 @@ async function handleInfoCommand(ctx) {
 }
 
 async function handleVoiceMessage(ctx) {
+  console.log("🔊 START: Обработка голосового сообщения");
+
+  if (!ctx.message.voice) {
+    console.log("🛑 Получено сообщение типа voice, но без voice данных");
+    return;
+  }
+
   if (ctx.from.id !== YOUR_USER_ID) {
+    console.log(
+      "🔒 Попытка доступа от неавторизованного пользователя:",
+      ctx.from.id
+    );
     return ctx.reply("Извините, этот бот приватный");
   }
 
   try {
+    console.log("🔊 Шаг 1: Отправляем действие 'typing'");
     await ctx.replyWithChatAction("typing");
 
-    // Скачиваем голосовое сообщение
+    console.log("🔊 Шаг 2: Получаем информацию о файле");
     const fileId = ctx.message.voice.file_id;
     const file = await ctx.api.getFile(fileId);
     const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${file.file_path}`;
 
-    // Загружаем аудио данные
+    console.log("🔊 Шаг 3: Скачиваем аудио файл:", fileUrl);
     const response = await fetch(fileUrl);
     const audioBuffer = await response.buffer();
+    console.log("✅ Аудио файл скачан, размер:", audioBuffer.length);
 
-    // Преобразуем речь в текст
+    console.log("🔊 Шаг 4: Распознаем речь...");
     const text = await speechService.speechToText(audioBuffer);
 
     if (!text) {
+      console.log("❌ Не удалось распознать речь");
       return ctx.reply("Не удалось распознать речь");
     }
+
+    console.log("✅ Распознанный текст:", text);
+    await ctx.reply(`🗣️ Распознано: ${text}`);
 
     // Проверяем специфические вопросы
     const specificAnswer = handleSpecificQuestions(text);
     if (specificAnswer) {
+      console.log("🔍 Найден специфический вопрос, отвечаем...");
       await ctx.reply(specificAnswer);
       return;
     }
 
-    // Отправляем распознанный текст пользователю
-    await ctx.reply(`🗣️ Распознано: ${text}`);
-
-    // Создаем сообщения для GigaChat с явным указанием контекста
-    const messages = [
-      getSystemPrompt(), // Системный промпт с информацией о пользователе
-      { role: "user", content: text }, // Текущее сообщение пользователя
-    ];
+    console.log("🔊 Шаг 5: Готовим запрос к GigaChat");
+    const messages = [getSystemPrompt(), { role: "user", content: text }];
 
     console.log(
       "📤 Отправляемые сообщения к GigaChat:",
       JSON.stringify(messages, null, 2)
     );
 
-    // Отправляем запрос к GigaChat
+    console.log("🔊 Шаг 6: Отправляем запрос к GigaChat");
     await ctx.api.sendChatAction(ctx.chat.id, "typing");
     const aiResponse = await askGigaChat(messages);
 
-    // Отправляем ответ пользователю
+    console.log("✅ Получен ответ от GigaChat");
     await ctx.reply(aiResponse);
+
+    console.log("🔊 END: Голосовое сообщение обработано успешно");
   } catch (error) {
-    console.error("Voice processing error:", error);
-    ctx.reply("Произошла ошибка при обработке голосового сообщения");
+    console.error(
+      "💥 Критическая ошибка в обработке голосового сообщения:",
+      error
+    );
+    console.error("💥 Stack trace:", error.stack);
+    await ctx.reply("❌ Произошла ошибка при обработке голосового сообщения");
   }
 }
 
 module.exports = {
-  handleMessage,
+  
   handleClearCommand,
   handleInfoCommand,
   handleVoiceMessage,

@@ -1,6 +1,9 @@
 const { Bot, Keyboard } = require("grammy");
 const fetch = require("node-fetch");
 // Правильные импорты
+const unitConverterService = require("./services/unitConverterService");
+const textProcessingService = require("./services/textProcessingService");
+const taskService = require("./services/taskService");
 const speechService = require("./services/speechService");
 const { initDatabase } = require("./database/db");
 const { userService, getSystemPrompt } = require("./services/userProfile");
@@ -48,15 +51,18 @@ const bot = new Bot(process.env.BOT_TOKEN);
 function createMainKeyboard() {
   return new Keyboard()
     .text("💰 Курсы валют")
-    .text("₿ Криптовалюты")
+    .text("🔄 Конвертер")
+    .row()
+    .text("📝 Задачи")
+    .text("🎯 Привычки")
     .row()
     .text("🌤️ Погода")
-    .text("📊 Google Таблица")
+    .text("📊 Таблица")
     .row()
+    .text("✏️ Текст")
     .text("🧹 Очистить историю")
-    .text("ℹ️ Помощь")
     .resized()
-    .persistent(); // Клавиатура остается открытой
+    .persistent();
 }
 
 // Команда /start
@@ -89,11 +95,52 @@ bot.command("start", async (ctx) => {
   });
 });
 
+// Исправление текста
+bot.command("correct", async (ctx) => {
+  const text = ctx.message.text.replace("/correct ", "").trim();
+  if (!text) {
+    await ctx.reply(
+      "Введите текст для исправления:\n/correct ваш текст с ошипками"
+    );
+    return;
+  }
+
+  try {
+    await ctx.reply("🔄 Исправляю ошибки...");
+    const corrected = await textProcessingService.correctText(text);
+    await ctx.reply(`✅ Исправленный текст:\n\n${corrected}`);
+  } catch (error) {
+    console.error("❌ Ошибка исправления текста:", error);
+    await ctx.reply("❌ Ошибка при исправлении текста");
+  }
+});
+
+bot.command("summarize", async (ctx) => {
+  const text = ctx.message.text.replace("/summarize ", "").trim();
+  if (!text) {
+    await ctx.reply(
+      "Введите текст для сокращения:\n/summarize ваш длинный текст"
+    );
+    return;
+  }
+
+  try {
+    await ctx.reply("🔄 Сокращаю текст...");
+    const summary = await textProcessingService.summarizeText(text);
+    await ctx.reply(`📃 Краткое содержание:\n\n${summary}`);
+  } catch (error) {
+    console.error("❌ Ошибка сокращения текста:", error);
+    await ctx.reply("❌ Ошибка при сокращении текста");
+  }
+});
+
 // Команда /help
 bot.command("help", async (ctx) => {
   await ctx.reply(
     `🎯 <b>Доступные команды:</b>
 
+/correct - Исправить ошибки в тексте
+/summarize - Сократить текст
 /currency - Актуальные курсы валют ЦБ РФ
 /crypto - Топ-10 криптовалют
 /weather - Прогноз погоды
@@ -312,6 +359,30 @@ bot.on("message:text", async (ctx) => {
       );
       break;
 
+    case "🔄 Конвертер":
+      await ctx.reply(
+        "🔄 Введите запрос в формате:\n\n• 100 км в мили\n• 50 кг в фунты\n• 32 celsius to fahrenheit\n• 100 usd to rub"
+      );
+      break;
+
+    case "📝 Задачи":
+      await ctx.reply(
+        "📝 Управление задачами:\n\n/addtask [задача] - Добавить задачу\n/tasks - Список задач\n/donetask [номер] - Завершить задачу"
+      );
+      break;
+
+    case "🎯 Привычки":
+      await ctx.reply(
+        "🎯 Трекер привычек:\n\n/addhabit [привычка] - Добавить привычку\n/habits - Мои привычки\n/markhabit [номер] - Отметить выполнение"
+      );
+      break;
+
+    case "✏️ Текст":
+      await ctx.reply(
+        "✏️ Работа с текстом:\n\n/correct [текст] - Исправить ошибки\n/summarize [текст] - Сократить текст\n/sentiment [текст] - Анализ тональности"
+      );
+      break;
+
     default:
       // Если это не кнопка, обрабатываем как обычное сообщение
       await processTextMessage(ctx, text);
@@ -377,8 +448,10 @@ async function processTextMessage(ctx, text) {
   }
 }
 
-// Обработчик голосовых сообщений (используем функцию из MessageHandlers)
-bot.on("message:voice", handleVoiceMessage);
+bot.on("message:voice", async (ctx) => {
+  console.log("🔊 Голосовое сообщение получено, но обработка отключена");
+  await ctx.reply("🚧 Обработка голосовых сообщений временно отключена");
+});
 
 // Главная функция запуска
 async function startBot() {
@@ -395,14 +468,16 @@ async function startBot() {
 
     // Устанавливаем список команд для меню
 
-    await bot.api.setMyCommands([
-      { command: "currency", description: "Курсы валют ЦБ РФ" },
-      { command: "crypto", description: "Топ-10 криптовалют" },
-      { command: "weather", description: "Прогноз погоды" },
-      { command: "add", description: "Запись в Google Таблицу" },
-      { command: "clear", description: "Очистить историю диалога" },
-      { command: "help", description: "Справка по командам" },
-    ]);
+   await bot.api.setMyCommands([
+     { command: "currency", description: "Курсы валют ЦБ РФ" },
+     { command: "crypto", description: "Топ-10 криптовалют" },
+     { command: "weather", description: "Прогноз погоды" },
+     { command: "add", description: "Запись в Google Таблицу" },
+     { command: "clear", description: "Очистить историю диалога" },
+     { command: "help", description: "Справка по командам" },
+     { command: "correct", description: "Исправить ошибки в тексте" },
+     { command: "summarize", description: "Краткое содержание текста" },
+   ]);
 
     console.log("✅ Список команд установлен");
 

@@ -1,24 +1,25 @@
-FROM node:18-slim
-
-# Используем российские зеркала для apt
-RUN echo "deb http://mirror.yandex.ru/debian bookworm main" > /etc/apt/sources.list && \
-    echo "deb http://mirror.yandex.ru/debian bookworm-updates main" >> /etc/apt/sources.list && \
-    echo "deb http://mirror.yandex.ru/debian-security bookworm-security main" >> /etc/apt/sources.list
-
-# Устанавливаем зависимости
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    python3 \
-    make \
-    g++ \
-    sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:20-alpine
 
 WORKDIR /app
 
+# Устанавливаем зависимости для ffmpeg и других нативных пакетов
+RUN apk add --no-cache \
+    ffmpeg \
+    python3 \
+    make \
+    g++
+
+# Копируем package.json и package-lock.json
 COPY package*.json ./
+
+# Устанавливаем зависимости
 RUN npm install
 
+# Копируем исходный код
 COPY . .
 
-CMD ["npm", "start"]
+# Создаем директорию для временных файлов
+RUN mkdir -p /tmp
+
+# Запускаем приложение
+CMD ["node", "bot.js"]

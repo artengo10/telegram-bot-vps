@@ -63,6 +63,21 @@ const spreadsheetId =
  * @param {string} value - Значение для записи
  * @returns {Promise<boolean>} - Успешно ли прошла запись
  */
+
+async function readFromCell(cell) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: cell,
+    });
+
+    return response.data.values ? response.data.values[0][0] : null;
+  } catch (error) {
+    console.error("[Google Sheets] Read error:", error);
+    return null;
+  }
+}
+
 async function writeToCell(cell, value) {
   try {
     console.log(`[Google Sheets] Attempting to write to ${cell}:`, value);

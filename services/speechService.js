@@ -13,6 +13,37 @@ class SpeechService {
     this.provider = process.env.SPEECH_PROVIDER || "yandex";
   }
 
+  // НОВЫЙ МЕТОД ДЛЯ КОНВЕРТАЦИИ
+  async convertOggToProperFormat(oggBuffer) {
+    const tempOggPath = path.join("/tmp", `convert_${Date.now()}.ogg`);
+    const tempWavPath = path.join("/tmp", `convert_${Date.now()}.wav`);
+
+    try {
+      await writeFileAsync(tempOggPath, oggBuffer);
+
+      // Конвертируем в моно WAV с частотой 16000 Hz
+      await new Promise((resolve, reject) => {
+        ffmpeg(tempOggPath)
+          .audioFrequency(16000)
+          .audioChannels(1)
+          .format("wav")
+          .on("end", resolve)
+          .on("error", reject)
+          .save(tempWavPath);
+      });
+
+      return fs.readFileSync(tempWavPath);
+    } finally {
+      // Очистка временных файлов
+      try {
+        await unlinkAsync(tempOggPath);
+      } catch (e) {}
+      try {
+        await unlinkAsync(tempWavPath);
+      } catch (e) {}
+    }
+  }
+
   // Удаляем конвертацию в WAV для Yandex
   async convertOggToWav(oggBuffer) {
     // Этот метод теперь нужен только для Whisper
@@ -45,38 +76,49 @@ class SpeechService {
 
   async recognizeWithYandex(audioBuffer) {
     try {
+      console.log("🎯 START: Yandex SpeechKit recognition");
       console.log("Yandex API Key present:", !!process.env.YANDEX_API_KEY);
       console.log("Audio buffer size:", audioBuffer.length);
 
-      // ОТЛАДКА: Сохраняем буфер во временный файл для проверки
+      // Сохраняем оригинальный OGG для отладки
       const tempOggPath = path.join("/tmp", `debug_${Date.now()}.ogg`);
       await writeFileAsync(tempOggPath, audioBuffer);
-      console.log("Debug OGG file saved to:", tempOggPath);
+      console.log("🔧 Debug OGG file saved to:", tempOggPath);
 
+      console.log("🔧 Конвертируем OGG в WAV...");
+      const convertedBuffer = await this.convertOggToProperFormat(audioBuffer);
+      console.log(
+        "✅ Конвертированный WAV buffer size:",
+        convertedBuffer.length
+      );
+
+      console.log("🔧 Отправляем запрос к Yandex SpeechKit...");
       const response = await fetch(
         "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize?lang=ru-RU",
         {
           method: "POST",
           headers: {
             Authorization: `Api-Key ${process.env.YANDEX_API_KEY}`,
-            "Content-Type": "audio/ogg", // Меняем на audio/ogg
+            "Content-Type": "audio/wav",
           },
-          body: audioBuffer, // Отправляем исходный OGG-буфер
+          body: convertedBuffer,
         }
       );
 
-      console.log("Yandex response status:", response.status);
+      console.log("🔧 Yandex response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Yandex error details:", errorText);
+        console.error("❌ Yandex error details:", errorText);
         throw new Error(`Yandex error: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log("✅ Yandex recognition result:", data);
+
       return data.result;
     } catch (error) {
-      console.error("Yandex recognition error:", error);
+      console.error("💥 Yandex recognition error:", error);
       throw error;
     }
   }

@@ -15,7 +15,7 @@ const externalDataService = require("./services/externalData");
 const { writeToCell } = require("./services/googleSheets");
 const {
   handleVoiceMessage,
-  handleSpecificQuestions, 
+  handleSpecificQuestions,
 } = require("./handlers/MessageHandlers");
 
 // Загрузка переменных окружения
@@ -51,7 +51,7 @@ const bot = new Bot(process.env.BOT_TOKEN);
 async function forceSetCommands() {
   try {
     console.log("🔄 Принудительная регистрация команд бота...");
-    
+
     await bot.api.setMyCommands([
       { command: "currency", description: "Курсы валют ЦБ РФ" },
       { command: "crypto", description: "Топ-10 криптовалют" },
@@ -61,21 +61,18 @@ async function forceSetCommands() {
       { command: "help", description: "Справка по командам" },
       { command: "correct", description: "Исправить ошибки в тексте" },
       { command: "summarize", description: "Краткое содержание текста" },
+      { command: "updatecommands", description: "Обновить команды бота" },
     ]);
-    
+
     console.log("✅ Команды бота успешно зарегистрированы в Telegram");
-    
+
     // Дополнительная проверка - получим текущие команды
     const commands = await bot.api.getMyCommands();
     console.log("📋 Текущие команды бота в Telegram:", commands);
-    
   } catch (error) {
     console.error("❌ Ошибка при регистрации команд:", error);
   }
 }
-
-// Вызовите функцию сразу
-forceSetCommands();
 
 // Создаем клавиатуру с кнопками
 function createMainKeyboard() {
@@ -97,9 +94,10 @@ function createMainKeyboard() {
 
 // Команда /start
 bot.command("start", async (ctx) => {
-  // ЗАЩИТА ОТ ЗАЦИКЛИВАНИЯ: проверяем, не обрабатывали ли мы уже это сообщение
   if (ctx.me && ctx.from.id === ctx.me.id) {
-    console.log("🛑 Защита от зацикливания: игнорируем сообщение от самого себя");
+    console.log(
+      "🛑 Защита от зацикливания: игнорируем сообщение от самого себя"
+    );
     return;
   }
 
@@ -115,6 +113,7 @@ bot.command("start", async (ctx) => {
 /clear - Очистить историю диалога
 /correct - Исправить ошибки в тексте
 /summarize - Сократить текст
+/updatecommands - Обновить команды бота
 /help - Справка
 
 💡 <b>Или используйте кнопки ниже</b> - это еще удобнее!`;
@@ -193,7 +192,9 @@ bot.command("updatecommands", async (ctx) => {
   try {
     await ctx.reply("🔄 Принудительно обновляю команды бота...");
     await forceSetCommands();
-    await ctx.reply("✅ Команды бота успешно обновлены! Используйте /start чтобы увидеть все команды.");
+    await ctx.reply(
+      "✅ Команды бота успешно обновлены! Используйте /start чтобы увидеть все команды."
+    );
   } catch (error) {
     console.error("❌ Ошибка в команде /updatecommands:", error);
     await ctx.reply("❌ Ошибка при обновлении команд");
@@ -318,7 +319,6 @@ bot.on("message:text", async (ctx) => {
   const chatId = ctx.chat.id;
   const messageId = ctx.message.message_id;
 
-  // ДОБАВИМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
   console.log("📨 INCOMING MESSAGE:", {
     text: text,
     chatId: chatId,
@@ -326,8 +326,6 @@ bot.on("message:text", async (ctx) => {
     from: ctx.from,
     date: new Date(ctx.message.date * 1000).toISOString(),
   });
-
-  // Проверяем, не от бота ли сообщение (чтобы избежать цикла)
 
   if (ctx.from.is_bot) {
     console.log("🛑 Сообщение от другого бота, игнорируем");
@@ -435,7 +433,6 @@ bot.on("message:text", async (ctx) => {
 });
 
 // Функция обработки текстовых сообщений
-
 async function processTextMessage(ctx, text) {
   const userId = ctx.from.id;
   console.log("🔧 Обработка текстового сообщения:", text);
@@ -505,23 +502,10 @@ async function startBot() {
 
     // ВРЕМЕННО ОТКЛЮЧАЕМ БАЗУ ДАННЫХ ДЛЯ ТЕСТА
     console.log("⏸️  База данных временно отключена для теста");
-    // await initDatabase();
-    // console.log("🔍 Шаг 2: Инициализация userService");
-    // await userService.init();
     console.log("✅ База данных пропущена");
 
-    // Устанавливаем список команд для меню
-
-   await bot.api.setMyCommands([
-     { command: "currency", description: "Курсы валют ЦБ РФ" },
-     { command: "crypto", description: "Топ-10 криптовалют" },
-     { command: "weather", description: "Прогноз погоды" },
-     { command: "add", description: "Запись в Google Таблицу" },
-     { command: "clear", description: "Очистить историю диалога" },
-     { command: "help", description: "Справка по командам" },
-     { command: "correct", description: "Исправить ошибки в тексте" },
-     { command: "summarize", description: "Краткое содержание текста" },
-   ]);
+    // ВЫЗЫВАЕМ ПРИНУДИТЕЛЬНУЮ РЕГИСТРАЦИЮ КОМАНД ПЕРЕД ЗАПУСКОМ
+    await forceSetCommands();
 
     console.log("✅ Список команд установлен");
 
@@ -534,10 +518,6 @@ async function startBot() {
         console.log(`✅ Бот @${username} запущен и готов к работе!`);
       },
     });
-
-    console.log(
-      "🔍 Шаг 6: После bot.start() - эта строка не должна быть видна при успешном запуске"
-    );
   } catch (error) {
     console.error("💥 Критическая ошибка при запуске бота:", error);
     console.error("💥 Stack trace:", error.stack);
